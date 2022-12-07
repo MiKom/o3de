@@ -30,12 +30,13 @@ namespace AzToolsFramework
         class AssetBrowserModel;
         class AssetBrowserTableFilterModel;
 
-        enum class AssetBrowserDisplayState : int
+        enum class AssetBrowserDisplayMode : int
         {
             TreeViewMode,
             ListViewMode,
             Invalid
         };
+
     } // namespace AssetBrowser
 } // namespace AzToolsFramework
 
@@ -44,6 +45,13 @@ class AzAssetBrowserWindow : public QWidget
     Q_OBJECT
 public:
     AZ_CLASS_ALLOCATOR(AzAssetBrowserWindow, AZ::SystemAllocator, 0);
+
+    enum class LayoutMode: int
+    {
+        OneColumn,
+        TwoColumn,
+        Invalid,
+    };
 
     explicit AzAssetBrowserWindow(QWidget* parent = nullptr);
     virtual ~AzAssetBrowserWindow();
@@ -81,8 +89,9 @@ private:
     QMenu* m_toolsMenu = nullptr;
     QAction* m_treeViewMode = nullptr;
     QAction* m_listViewMode = nullptr;
-    AzToolsFramework::AssetBrowser::AssetBrowserDisplayState m_assetBrowserDisplayState =
-        AzToolsFramework::AssetBrowser::AssetBrowserDisplayState::ListViewMode;
+    AzToolsFramework::AssetBrowser::AssetBrowserDisplayMode m_assetBrowserDisplayState =
+        AzToolsFramework::AssetBrowser::AssetBrowserDisplayMode::ListViewMode;
+    LayoutMode m_layoutMode = LayoutMode::TwoColumn;
 
     //! Updates the asset preview panel with data about the passed entry.
     //! Clears the panel if nullptr is passed

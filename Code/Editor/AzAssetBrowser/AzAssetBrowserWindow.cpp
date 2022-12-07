@@ -135,6 +135,7 @@ AzAssetBrowserWindow::AzAssetBrowserWindow(QWidget* parent)
 
     if (!ed_useWIPAssetBrowserDesign)
     {
+        SetOneColumnMode();
         m_ui->m_breadcrumbsWrapper->hide(); 
         m_ui->m_middleStackWidget->hide();
         m_ui->m_treeViewButton->hide();
@@ -264,7 +265,7 @@ void AzAssetBrowserWindow::CreateToolsMenu()
         m_ui->m_searchWidget->GetFilter()->AddFilter(m_ui->m_searchWidget->GetProjectSourceFilter());
         m_ui->m_searchWidget->AddFolderFilter();
 
-        m_assetBrowserDisplayState = AzToolsFramework::AssetBrowser::AssetBrowserDisplayState::TreeViewMode;
+        m_assetBrowserDisplayState = AzToolsFramework::AssetBrowser::AssetBrowserDisplayMode::TreeViewMode;
         m_ui->m_assetBrowserTableViewWidget->setVisible(false);
         m_ui->m_assetBrowserTreeViewWidget->setVisible(true);
     }
@@ -300,12 +301,12 @@ void AzAssetBrowserWindow::UpdateDisplayInfo()
 
     switch (m_assetBrowserDisplayState)
     {
-    case AzAssetBrowser::AssetBrowserDisplayState::TreeViewMode:
+    case AzAssetBrowser::AssetBrowserDisplayMode::TreeViewMode:
         {
             m_treeViewMode->setChecked(true);
             break;
         }
-    case AzAssetBrowser::AssetBrowserDisplayState::ListViewMode:
+    case AzAssetBrowser::AssetBrowserDisplayMode::ListViewMode:
         {
             m_listViewMode->setChecked(true);
             break;
@@ -344,7 +345,7 @@ void AzAssetBrowserWindow::SetTreeViewMode()
 {
     namespace AzAssetBrowser = AzToolsFramework::AssetBrowser;
 
-    m_assetBrowserDisplayState = AzAssetBrowser::AssetBrowserDisplayState::TreeViewMode;
+    m_assetBrowserDisplayState = AzAssetBrowser::AssetBrowserDisplayMode::TreeViewMode;
 
     if (m_ui->m_assetBrowserTableViewWidget->isVisible())
     {
@@ -357,7 +358,7 @@ void AzAssetBrowserWindow::SetListViewMode()
 {
     namespace AzAssetBrowser = AzToolsFramework::AssetBrowser;
 
-    m_assetBrowserDisplayState = AzAssetBrowser::AssetBrowserDisplayState::ListViewMode;
+    m_assetBrowserDisplayState = AzAssetBrowser::AssetBrowserDisplayMode::ListViewMode;
     UpdateWidgetAfterFilter();
 }
 
@@ -367,7 +368,7 @@ void AzAssetBrowserWindow::UpdateWidgetAfterFilter()
     namespace AzAssetBrowser = AzToolsFramework::AssetBrowser;
 
     const bool hasFilter = !m_ui->m_searchWidget->GetFilterString().isEmpty();
-    if (m_assetBrowserDisplayState == AzAssetBrowser::AssetBrowserDisplayState::ListViewMode)
+    if (m_assetBrowserDisplayState == AzAssetBrowser::AssetBrowserDisplayMode::ListViewMode)
     {
         m_ui->m_assetBrowserTableViewWidget->setVisible(hasFilter);
         m_ui->m_assetBrowserTreeViewWidget->setVisible(!hasFilter);
@@ -413,6 +414,7 @@ void AzAssetBrowserWindow::UpdateBreadcrumbs(const AzToolsFramework::AssetBrowse
 
 void AzAssetBrowserWindow::SetTwoColumnMode(QWidget* viewToShow)
 {
+    m_layoutMode = LayoutMode::TwoColumn;
     m_ui->m_middleStackWidget->show();
     m_ui->m_middleStackWidget->setCurrentWidget(viewToShow);
     m_ui->m_searchWidget->AddFolderFilter();
@@ -420,6 +422,7 @@ void AzAssetBrowserWindow::SetTwoColumnMode(QWidget* viewToShow)
 
 void AzAssetBrowserWindow::SetOneColumnMode()
 {
+    m_layoutMode = LayoutMode::OneColumn;
     m_ui->m_middleStackWidget->hide();
     m_ui->m_searchWidget->RemoveFolderFilter();
 }
@@ -445,7 +448,7 @@ static void ExpandTreeToIndex(QTreeView* treeView, const QModelIndex& index)
 
 void AzAssetBrowserWindow::SelectAsset(const QString& assetPath)
 {
-    QModelIndex index = m_assetBrowserModel->findIndex(assetPath);
+    QPersistentModelIndex index = m_assetBrowserModel->findIndex(assetPath);
     if (index.isValid())
     {
         m_ui->m_searchWidget->ClearTextFilter();
@@ -460,8 +463,27 @@ void AzAssetBrowserWindow::SelectAsset(const QString& assetPath)
             0, this,
             [this, filteredIndex = index]
             {
+                using namespace AzToolsFramework::AssetBrowser;
+
+                QModelIndex targetIndex = filteredIndex;
+                // If we're in two column mode where the tree doesn't show files, we need to select the parent folder because the file
+                // won't be found in the filtered model
+                if (m_layoutMode == LayoutMode::TwoColumn)
+                {
+                    const auto* entry = filteredIndex.data(AssetBrowserModel::Roles::EntryRole).value<const AssetBrowserEntry*>();
+                    const AssetBrowserEntry* folderEntry = Utils::FolderForEntry(entry);
+                    if (folderEntry)
+                    {
+                        targetIndex = m_assetBrowserModel->findIndex(QString::fromUtf8(folderEntry->GetFullPath().c_str()));
+                    }
+                    if (!targetIndex.isValid())
+                    {
+                        return;
+                    }
+                }
+
                 // the treeview has a filter model so we have to backwards go from that
-                QModelIndex index = m_filterModel->mapFromSource(filteredIndex);
+                QModelIndex index = m_filterModel->mapFromSource(targetIndex);
 
                 QTreeView* treeView = m_ui->m_assetBrowserTreeViewWidget;
                 ExpandTreeToIndex(treeView, index);
